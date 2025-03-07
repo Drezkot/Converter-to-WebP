@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конвертер изображений в WebP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Конвертер изображений в WebP</h1>
+            <p>Конвертируйте свои изображения в формат WebP для повышения производительности веб-сайта</p>
+        </header>
+
+        <main>
+            <div class="upload-container">
+                <div class="drop-zone" id="dropZone">
+                    <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    <h3>Перетащите изображения сюда</h3>
+                    <p>или нажмите, чтобы выбрать файлы</p>
+                    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.bmp,.tiff,.heic,.webp" style="display: none;">
+                </div>
+
+                <div id="fileList" class="file-list"></div>
+
+                <button id="convertBtn" class="btn btn-primary" style="display: none;">
+                    Конвертировать в WebP
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

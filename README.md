@@ -24,15 +24,28 @@ This is a Flask-based web application that allows users to upload images, conver
    git clone https://github.com/yourusername/image-webp-converter.git
    cd image-webp-converter
    ```
-2. Install dependencies:
+2. If you don't have Python installed, download and install it from [Python Official Website](https://www.python.org/downloads/).
+3. Create and activate a virtual environment:
+   ```sh
+   python3 -m venv venv
+   ```
+   - On macOS/Linux:
+     ```sh
+     source venv/bin/activate
+     ```
+   - On Windows:
+     ```sh
+     venv\Scripts\activate
+     ```
+4. Install dependencies:
    ```sh
    pip install -r requirements.txt
    ```
-3. Run the Flask application:
+5. Run the Flask application:
    ```sh
    python app.py
    ```
-4. Open the browser and go to:
+6. Open the browser and go to:
    ```
    http://127.0.0.1:5000/
    ```
@@ -70,15 +83,28 @@ This is a Flask-based web application that allows users to upload images, conver
    git clone https://github.com/yourusername/image-webp-converter.git
    cd image-webp-converter
    ```
-2. Установите зависимости:
+2. Если у вас нет Python, скачайте и установите его с [официального сайта Python](https://www.python.org/downloads/).
+3. Создайте и активируйте виртуальное окружение:
+   ```sh
+   python3 -m venv venv
+   ```
+   - На macOS/Linux:
+     ```sh
+     source venv/bin/activate
+     ```
+   - На Windows:
+     ```sh
+     venv\Scripts\activate
+     ```
+4. Установите зависимости:
    ```sh
    pip install -r requirements.txt
    ```
-3. Запустите приложение Flask:
+5. Запустите приложение Flask:
    ```sh
    python app.py
    ```
-4. Откройте браузер и перейдите по адресу:
+6. Откройте браузер и перейдите по адресу:
    ```
    http://127.0.0.1:5000/
    ```

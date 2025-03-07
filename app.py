@@ -1,9 +1,13 @@
+import atexit
 import logging
 import os
+import shutil
+import tempfile
 import time
 import uuid
+
 from PIL import Image, UnidentifiedImageError
-from flask import Flask, request, render_template, send_from_directory, abort
+from flask import Flask, request, render_template, send_file, abort
 from werkzeug.utils import secure_filename
 
 # Настройка логирования
@@ -12,54 +16,47 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 # Flask приложение
 app = Flask(__name__)
 
-# Директории для загрузки и конвертированных изображений
-UPLOAD_FOLDER = "uploads"
-OUTPUT_FOLDER = "output"
-
 # Поддерживаемые форматы
 SUPPORTED_FORMATS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".heic", ".webp"}
 MAX_PIXELS = 50_000_000  # Ограничение на размер изображения (50 млн пикселей)
-AUTO_RESIZE = True  # Уменьшать слишком большие изображения
-CACHE_ENABLED = True  # Включить кэширование обработанных файлов
 
-# Ограничение размера загружаемых файлов (10MB)
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
-
-# Создание папок, если они не существуют
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-
-processed_cache = set()  # Кэш обработанных файлов
+# Временная папка для хранения файлов
+temp_dir = tempfile.TemporaryDirectory()
+TEMP_FOLDER = temp_dir.name
 
 
-def convert_to_webp(input_path: str, output_path: str, quality: int = 80) -> bool:
-    """Конвертирует изображение в WebP."""
+# Очистка временной папки при завершении работы сервера
+def cleanup_temp_folder():
+    """Очищает временную папку при завершении работы сервера."""
+    shutil.rmtree(TEMP_FOLDER, ignore_errors=True)
+    logging.info("🧹 Временная папка очищена")
+
+
+atexit.register(cleanup_temp_folder)
+
+
+def convert_to_webp(image_file, output_path):
+    """Конвертирует изображение в WebP и сохраняет во временной папке."""
     start_time = time.time()
-
-    if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
-        logging.error(f"❌ Ошибка с файлом {input_path}")
-        return False
-
     try:
-        with Image.open(input_path) as img:
-            # Автоматическое уменьшение размеров при необходимости
-            if img.size[0] * img.size[1] > MAX_PIXELS:
-                img.thumbnail((2048, 2048))
-                logging.info(f"⚠️ Изображение {input_path} было уменьшено")
+        img = Image.open(image_file)
 
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            img.save(output_path, "WEBP", quality=quality)
-            elapsed_time = time.time() - start_time
-            logging.info(f"✅ Успешная конвертация: {output_path} - ⏱ {elapsed_time:.2f} сек")
-            return True
+        if img.size[0] * img.size[1] > MAX_PIXELS:
+            img.thumbnail((2048, 2048))
+            quality = 75  # Снижаем качество при больших изображениях
+            logging.info("⚠️ Изображение уменьшено для соответствия ограничениям")
+        else:
+            quality = 90
+
+        img.save(output_path, "WEBP", quality=quality)
+        elapsed_time = time.time() - start_time
+        logging.info(f"✅ Успешная конвертация {image_file.filename} - ⏱ {elapsed_time:.2f} сек")
+        return output_path
     except UnidentifiedImageError:
-        logging.error(f"❌ Ошибка: {input_path} не является изображением")
+        logging.error(f"❌ Ошибка: файл {image_file.filename} не является изображением")
     except Exception as e:
         logging.error(f"❌ Ошибка: {type(e).__name__} - {e}", exc_info=True)
-
-    return False
+    return None
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -67,9 +64,6 @@ def upload_files():
     """Обрабатывает загрузку нескольких изображений."""
     try:
         if request.method == "POST":
-            if "files" not in request.files:
-                return "Файлы не загружены", 400
-
             files = request.files.getlist("files")
             if not files or all(file.filename == "" for file in files):
                 return "Файлы не выбраны", 400
@@ -78,25 +72,17 @@ def upload_files():
 
             for file in files:
                 filename = secure_filename(file.filename)
-                file_ext = os.path.splitext(filename)[1].lower()
+                file_ext = os.path.splitext(filename)[-1].lower()
 
                 if file_ext not in SUPPORTED_FORMATS:
                     logging.warning(f"⚠️ Файл {filename} имеет неподдерживаемый формат, пропускаем.")
                     continue
 
-                # Уникальное имя файла
-                unique_filename = f"{uuid.uuid4().hex}_{filename}"
-                input_path = os.path.join(app.config["UPLOAD_FOLDER"], unique_filename)
-                file.save(input_path)
+                unique_filename = f"{uuid.uuid4().hex}.webp"
+                output_path = os.path.join(TEMP_FOLDER, unique_filename)
 
-                output_filename = os.path.splitext(unique_filename)[0] + ".webp"
-                output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
-
-                if convert_to_webp(input_path, output_path, quality=90):
-                    converted_files.append(output_filename)
-
-                # Удаляем исходный файл после обработки
-                os.remove(input_path)
+                if convert_to_webp(file, output_path):
+                    converted_files.append(unique_filename)
 
             if converted_files:
                 return render_template("success.html", files=converted_files)
@@ -109,13 +95,14 @@ def upload_files():
         return "Произошла ошибка на сервере", 500
 
 
-@app.route("/output/<filename>")
+@app.route("/download/<filename>")
 def download_file(filename):
-    """Позволяет скачать конвертированное изображение."""
-    try:
-        return send_from_directory(app.config["OUTPUT_FOLDER"], filename, as_attachment=True)
-    except FileNotFoundError:
-        abort(404, "Файл не найден")
+    """Позволяет скачать конвертированное изображение из временной папки."""
+    file_path = os.path.join(TEMP_FOLDER, filename)
+    if os.path.exists(file_path):
+        logging.info(f"Файл {filename} скачан пользователем {request.remote_addr}")
+        return send_file(file_path, as_attachment=True, download_name=filename, mimetype="image/webp")
+    abort(404, "Файл не найден")
 
 
 if __name__ == "__main__":
